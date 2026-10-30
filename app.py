@@ -24,6 +24,68 @@ st.set_page_config(
     layout="wide",
 )
 
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background:
+            radial-gradient(ellipse at 12% 0%, #edf4ff 0, transparent 34%),
+            #f6f8fc;
+    }
+    .block-container {
+        max-width: 1380px;
+        padding: 2rem 2.5rem 3rem;
+    }
+    [data-testid="stHeader"] {
+        background: transparent;
+    }
+    [data-testid="stMetric"] {
+        background: #ffffff;
+        border: 1px solid #e6eaf2;
+        border-radius: 14px;
+        padding: 1rem 1.1rem;
+        box-shadow: 0 4px 16px rgba(27, 45, 80, 0.04);
+    }
+    [data-testid="stMetricLabel"] {
+        color: #64748b;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0.45rem;
+        border-bottom: 1px solid #e4e9f2;
+        padding-bottom: 0.35rem;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 3rem;
+        padding: 0 1rem;
+        border-radius: 10px 10px 0 0;
+        color: #64748b;
+        font-weight: 600;
+    }
+    .stTabs [aria-selected="true"] {
+        color: #315ee8;
+        border-bottom-color: #315ee8;
+    }
+    div[data-testid="stForm"] {
+        background: #ffffff;
+        border: 1px solid #e6eaf2;
+        border-radius: 14px;
+        padding: 1.25rem;
+    }
+    div[data-testid="stExpander"] {
+        background: #ffffff;
+        border: 1px solid #e6eaf2;
+        border-radius: 12px;
+        margin-bottom: 0.65rem;
+    }
+    .dashboard-subtitle {
+        color: #64748b;
+        margin-top: -0.5rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # Initialize database
 init_db()
 
@@ -32,32 +94,88 @@ init_db()
 # HEADER
 # --------------------------------------------------
 
-st.title("📋 TeamSync AI")
-
-st.markdown(
-    """
-    **AI-powered meeting intelligence and task management**
-
-    Turn meeting discussions into actionable tasks, preserve team knowledge,
-    and generate personalized handover briefs.
-    """
-)
-
-st.divider()
+brand, tagline = st.columns([1.2, 2.8], vertical_alignment="center")
+with brand:
+    st.markdown("## 📋 TeamSync AI")
+with tagline:
+    st.markdown(
+        '<p class="dashboard-subtitle">'
+        "Meeting intelligence, team tasks, and shared knowledge — in one place."
+        "</p>",
+        unsafe_allow_html=True,
+    )
 
 
 # --------------------------------------------------
 # NAVIGATION TABS
 # --------------------------------------------------
 
-tab1, tab2, tab3, tab4 = st.tabs(
+tab0, tab1, tab2, tab3, tab4 = st.tabs(
     [
+        "🏠 Overview",
         "📝 Meeting Intelligence",
         "✅ Task Management",
         "🔍 Knowledge Base",
         "🤝 Smart Handover",
     ]
 )
+
+
+# ==================================================
+# TAB 0: DASHBOARD OVERVIEW
+# ==================================================
+
+with tab0:
+    tasks = get_all_tasks()
+    open_count = sum(
+        task["status"] in ("Open", "In Progress")
+        for task in tasks
+    )
+    completed_count = sum(
+        task["status"] == "Completed"
+        for task in tasks
+    )
+    assigned_owners = {
+        task["owner"].strip().casefold()
+        for task in tasks
+        if task["owner"] and task["owner"].strip()
+    }
+
+    st.subheader("Team overview")
+    st.markdown(
+        '<p class="dashboard-subtitle">'
+        "A quick view of your team's action items and progress."
+        "</p>",
+        unsafe_allow_html=True,
+    )
+
+    metric1, metric2, metric3, metric4 = st.columns(4)
+    metric1.metric("Total action items", len(tasks))
+    metric2.metric("Open / in progress", open_count)
+    metric3.metric("Completed", completed_count)
+    metric4.metric("Assigned teammates", len(assigned_owners))
+
+    st.markdown("### Recent action items")
+    if tasks:
+        recent_tasks = [
+            {
+                "Task": task["description"],
+                "Owner": task["owner"] or "Unassigned",
+                "Status": task["status"],
+                "Meeting": task["meeting_title"],
+                "Due date": task["due_date"] or "Not specified",
+            }
+            for task in tasks[:6]
+        ]
+        st.dataframe(
+            recent_tasks,
+            hide_index=True,
+            use_container_width=True,
+        )
+    else:
+        st.info(
+            "No action items yet. Start by analyzing your first meeting."
+        )
 
 
 # ==================================================
@@ -78,15 +196,17 @@ with tab1:
             placeholder="e.g. Website Launch Planning",
         )
 
-        meeting_date = st.date_input(
-            "Meeting Date",
-            value=date.today(),
-        )
-
-        participants = st.text_input(
-            "Participants",
-            placeholder="e.g. Rahul, Priya, Amit",
-        )
+        date_column, participants_column = st.columns(2)
+        with date_column:
+            meeting_date = st.date_input(
+                "Meeting Date",
+                value=date.today(),
+            )
+        with participants_column:
+            participants = st.text_input(
+                "Participants",
+                placeholder="e.g. Rahul, Priya, Amit",
+            )
 
         notes = st.text_area(
             "Meeting Notes",
@@ -142,26 +262,35 @@ with tab1:
     if analysis is not None:
         st.subheader("📊 Analysis Results")
 
-        st.markdown("### Summary")
-        st.write(analysis.summary)
+        summary_column, decisions_column = st.columns(2)
+        with summary_column:
+            with st.container(border=True):
+                st.markdown("#### Summary")
+                st.write(analysis.summary)
+        with decisions_column:
+            with st.container(border=True):
+                st.markdown("#### Decisions")
+                if analysis.decisions:
+                    for decision in analysis.decisions:
+                        st.markdown(f"- {decision}")
+                else:
+                    st.info("No explicit decisions were identified.")
 
-        st.markdown("### Decisions")
-
-        if analysis.decisions:
-            for decision in analysis.decisions:
-                st.markdown(f"- {decision}")
-        else:
-            st.info("No explicit decisions were identified.")
-
-        st.markdown("### Action Items")
-
+        st.markdown("#### Action items")
         if analysis.action_items:
-            for item in analysis.action_items:
-                st.markdown(
-                    f"- **Task:** {item.description}\n"
-                    f"  - **Owner:** {item.owner or 'Unassigned'}\n"
-                    f"  - **Due date:** {item.due_date or 'Not specified'}"
-                )
+            action_rows = [
+                {
+                    "Task": item.description,
+                    "Owner": item.owner or "Unassigned",
+                    "Due date": item.due_date or "Not specified",
+                }
+                for item in analysis.action_items
+            ]
+            st.dataframe(
+                action_rows,
+                hide_index=True,
+                use_container_width=True,
+            )
         else:
             st.info("No action items were identified.")
 
@@ -225,25 +354,31 @@ with tab2:
             with st.expander(
                 f"Task #{task['id']}: {task['description']}"
             ):
-                st.write(
-                    f"**Meeting:** {task['meeting_title']}"
-                )
+                meeting_column, due_column, owner_column = st.columns(3)
+                meeting_column.caption("MEETING")
+                meeting_column.write(task["meeting_title"])
+                due_column.caption("DUE DATE")
+                due_column.write(task["due_date"] or "Not specified")
+                owner_column.caption("CURRENT OWNER")
+                owner_column.write(task["owner"] or "Unassigned")
 
-                st.write(
-                    f"**Owner:** {task['owner'] or 'Unassigned'}"
-                )
+                owner_input, owner_button = st.columns([3, 1])
+                with owner_input:
+                    owner = st.text_input(
+                        "Assigned owner",
+                        value=task["owner"] or "",
+                        placeholder="Leave blank to mark unassigned",
+                        key=f"owner_{task['id']}",
+                    )
+                with owner_button:
+                    st.write("")
+                    save_owner = st.button(
+                        "Save owner",
+                        key=f"save_owner_{task['id']}",
+                        use_container_width=True,
+                    )
 
-                owner = st.text_input(
-                    "Assigned owner",
-                    value=task["owner"] or "",
-                    placeholder="Leave blank to mark unassigned",
-                    key=f"owner_{task['id']}",
-                )
-
-                if st.button(
-                    "Save Owner",
-                    key=f"save_owner_{task['id']}",
-                ):
+                if save_owner:
                     try:
                         update_task_owner(task["id"], owner)
                         st.session_state[
@@ -262,36 +397,30 @@ with tab2:
                 ):
                     st.success("Task owner updated successfully.")
 
-                st.write(
-                    f"**Due date:** {task['due_date'] or 'Not specified'}"
-                )
-
-                st.write(
-                    f"**Current status:** {task['status']}"
-                )
-
-                current_status = task["status"]
-
-                new_status = st.selectbox(
-                    "Update status",
-                    status_options,
-                    index=(
-                        status_options.index(current_status)
-                        if current_status in status_options
-                        else 0
-                    ),
-                    key=f"status_{task['id']}",
-                )
-
-                outcome = st.text_input(
-                    "Outcome or completion notes",
-                    value=task["outcome"] or "",
-                    key=f"outcome_{task['id']}",
-                )
+                status_column, outcome_column = st.columns(2)
+                with status_column:
+                    current_status = task["status"]
+                    new_status = st.selectbox(
+                        "Update status",
+                        status_options,
+                        index=(
+                            status_options.index(current_status)
+                            if current_status in status_options
+                            else 0
+                        ),
+                        key=f"status_{task['id']}",
+                    )
+                with outcome_column:
+                    outcome = st.text_input(
+                        "Outcome or completion notes",
+                        value=task["outcome"] or "",
+                        key=f"outcome_{task['id']}",
+                    )
 
                 if st.button(
                     "Save Changes",
                     key=f"save_{task['id']}",
+                    use_container_width=True,
                 ):
                     try:
                         update_task_status(
@@ -315,25 +444,28 @@ with tab2:
 # ==================================================
 
 with tab3:
-    st.header("Team Knowledge Base")
+    st.header("Knowledge base")
 
     st.write(
         "Ask questions about previous meetings, decisions, "
         "and project discussions."
     )
 
-    question = st.text_area(
-        "Ask a question",
-        placeholder=(
-            "Example: What decisions were made about the website launch?"
-        ),
-        height=100,
-    )
+    with st.container(border=True):
+        question = st.text_area(
+            "Ask a question",
+            placeholder=(
+                "Example: What decisions were made about the website launch?"
+            ),
+            height=120,
+        )
 
-    if st.button(
-        "🔍 Search Team Knowledge",
-        use_container_width=True,
-    ):
+        search_clicked = st.button(
+            "🔍 Search team knowledge",
+            use_container_width=True,
+        )
+
+    if search_clicked:
         if not question.strip():
             st.warning("Please enter a question.")
 
@@ -345,7 +477,8 @@ with tab3:
                     answer = answer_question(question)
 
                 st.subheader("Answer")
-                st.write(answer)
+                with st.container(border=True):
+                    st.markdown(answer)
 
             except Exception:
                 st.error(
@@ -359,22 +492,27 @@ with tab3:
 # ==================================================
 
 with tab4:
-    st.header("Smart Handover Brief")
+    st.header("Smart handover")
 
     st.write(
         "Generate a personalized catch-up brief using a teammate's "
         "open tasks and relevant meeting history."
     )
 
-    owner = st.text_input(
-        "Teammate Name",
-        placeholder="e.g. Rahul",
-    )
+    owner_column, generate_column = st.columns([2, 1])
+    with owner_column:
+        owner = st.text_input(
+            "Teammate name",
+            placeholder="e.g. Rahul",
+        )
+    with generate_column:
+        st.write("")
+        generate_clicked = st.button(
+            "🤝 Generate handover brief",
+            use_container_width=True,
+        )
 
-    if st.button(
-        "🤝 Generate Handover Brief",
-        use_container_width=True,
-    ):
+    if generate_clicked:
         if not owner.strip():
             st.warning("Please enter a teammate's name.")
 
@@ -388,7 +526,8 @@ with tab4:
                     )
 
                 st.subheader("Your Handover Brief")
-                st.markdown(brief)
+                with st.container(border=True):
+                    st.markdown(brief)
 
             except Exception:
                 st.error(
@@ -403,6 +542,10 @@ with tab4:
 
 st.divider()
 
-st.caption(
-    "TeamSync AI | Meeting Intelligence • Task Management • RAG • Smart Handover"
-)
+footer_left, footer_right = st.columns([2, 1])
+with footer_left:
+    st.caption(
+        "TeamSync AI · Meeting intelligence · Task management · Team knowledge"
+    )
+with footer_right:
+    st.caption("Built for teams that stay in sync.")
